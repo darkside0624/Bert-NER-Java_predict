@@ -6,7 +6,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,14 +26,21 @@ import com.google.common.base.Splitter;
 
 public class App {
 	public static void main(String[] args) throws FileNotFoundException, IOException {
+		String pyscriptPath = "C:\\Users\\user\\Desktop\\getLabels.py";
+
+		String labelPath = "C:\\Users\\user\\Desktop\\label2id.pkl";
+
+		List<String> lableList = getlabelsfrompkl(labelPath, pyscriptPath);
+
+		int sequence_lenght = 16;
 
 		Map<String, Integer> vocaMap = readLineListWithVocab("C:\\Users\\user\\Desktop\\vocab.txt");
 
-		String intputString = "车振军，李明，姚明一起加入了共产党";
+		String intputString = "希沃金牌讲师团发布的课程";
 
 		int length = intputString.length();
 
-		int[][] inputids = new int[1][128];
+		int[][] inputids = new int[1][sequence_lenght];
 
 		inputids[0][0] = vocaMap.get("[CLS]");
 
@@ -50,26 +56,26 @@ public class App {
 
 		inputids[0][length + 1] = vocaMap.get("[SEP]");
 
-		int[][] inputmasks = new int[1][128];
+		int[][] inputmasks = new int[1][sequence_lenght];
 
 		for (int i = 0; i <= intputString.length() + 1; i++) {
 
 			inputmasks[0][i] = 1;
 		}
 
-		List<String> lableList = new ArrayList<String>(
-				Arrays.asList("B-PER", "X", "I-ORG", "B-LOC", "B-ORG", "[SEP]", "I-LOC", "I-PER", "O", "[CLS]"));
-
+//		List<String> lableList = new ArrayList<String>(
+//				Arrays.asList("I-LOC", "B-PER", "B-LOC", "O", "I-ORG", "B-ORG", "[SEP]", "X", "[CLS]", "I-PER"));
 		Map<Integer, String> labelMap = new HashMap<Integer, String>();
 		for (int i = 0; i < lableList.size(); i++) {
 			labelMap.put(i + 1, lableList.get(i));
 		}
-
-//		ArrayList<String> lables = new ArrayList<String>();
+//
+////		ArrayList<String> lables = new ArrayList<String>();
 
 		try (Graph graph = new Graph()) {
 			// 导入图
-			byte[] graphBytes = IOUtils.toByteArray(new FileInputStream("C:\\Users\\user\\Desktop\\ner_model.pb"));
+			byte[] graphBytes = IOUtils.toByteArray(new FileInputStream(
+					"C:\\\\Users\\\\user\\\\Documents\\\\GitHub\\\\Semantic-search\\\\target\\\\classes\\\\Bert_Ner\\\\ner_model.pb"));
 
 			graph.importGraphDef(graphBytes);
 
@@ -79,7 +85,7 @@ public class App {
 				long startTime = System.currentTimeMillis();
 				Tensor outpuTensor = session.runner().feed("input_ids", Tensor.create(inputids))
 						.feed("input_mask", Tensor.create(inputmasks)).fetch("pred_ids").run().get(0);
-				int[][] outArr = new int[1][128];
+				int[][] outArr = new int[1][sequence_lenght];
 
 				outpuTensor.copyTo(outArr);
 				long bertinferenceTime = System.currentTimeMillis();
@@ -117,41 +123,35 @@ public class App {
 			}
 		}
 
-//		List<String> tokens = new ArrayList<String>(
-//
-//				Arrays.asList("[CLS]", "车", "振", "军", "[SEP]"));
-//		
-//		Result r = new Result();
-//		r.result_to_json(tokens, result);
-//
-//		System.out.println(r.getPers().toString());
-//		List<String> result = new ArrayList<String>();
-//		int[][] outArr = new int[1][128];
-//		outArr[0][0] = 10;
-//		outArr[0][1] = 1;
-//		outArr[0][2] = 8;
-//		outArr[0][3] = 8;
-//		outArr[0][4] = 6;
-//
-//		for (int i = 0; i < outArr[0].length; i++) {
-//			if (outArr[0][i] == 0) {
-//				break;
-//			}
-//			String currentlabel = labelMap.get(outArr[0][i]);
-//
-//			if (currentlabel == "[CLS]" || currentlabel == "[SEP]") {
-//				continue;
-//			}
-//			result.add(currentlabel);
-//		}
-//
-//		for (int i = 0; i < result.size(); i++) {
-//			System.out.println(result.get(i));
-//		}
-//
-//		List<Entity> pers = result_to_json(tokens_copy, result);
-//
-//		System.out.println(pers.toString());
+	}
+
+	private static List<String> getlabelsfrompkl(String labelPath, String pyscriptPath) {
+		List<String> lableList = new ArrayList<String>();
+
+		try {
+			String[] pargs = new String[] { "python", pyscriptPath,
+
+					String.valueOf(labelPath) };
+
+			Process proc = Runtime.getRuntime().exec(pargs);// 执行py文件
+
+			BufferedReader in = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+			String line = null;
+			while ((line = in.readLine()) != null) {
+
+				for (int i = 0; i < line.split("_").length; i++) {
+					lableList.add(line.split("_")[i]);
+				}
+
+			}
+			in.close();
+			proc.waitFor();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		return lableList;
 	}
 
 	private static List<List<Entity>> result_to_json(List<String> tokens, List<String> tags) {
